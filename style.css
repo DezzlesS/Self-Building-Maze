@@ -1,0 +1,71 @@
+body {
+    height: 95vh;
+    background: #292929;
+}
+
+.maze-container {
+    height: 100%;
+    /* border: 1px solid black; */
+    margin: 20px;
+    display: flex;
+    flex-direction: column;
+    background: rgb(11, 11, 12);
+    text-align: center;
+    /* justify-content: space-between; */
+}
+
+.row {
+    display: flex;
+    box-sizing: border-box;
+    /* border-bottom: 1px solid rgb(49, 49, 49); */
+}
+.row:last-of-type {
+    border: none;
+}
+
+.cell {
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    /* transition: .2s; */
+    /* border-right: 1px solid rgb(49, 49, 49); */
+}
+
+.first {
+    border-left: none;
+}
+.last {
+    border-right: none;
+}
+
+.--path {
+    background: rgb(125 197 124);
+    /* box-shadow: 0 0 8px rgb(125 197 124); */
+}
+
+.--settled {
+    background: rgb(94 94 94);
+}
+
+.--head {
+    background: white;
+    box-shadow: 0 0 12px 2px white;
+}
+
+.--bordered {
+    border: 1px solid black;
+}
+
+[side~=left] {
+    border-left-color: transparent;
+}
+[side~=right] {
+    border-right-color: transparent;
+}
+[side~=top] {
+    border-top-color: transparent;
+}
+[side~=bottom] {
+    border-bottom-color: transparent;
+}
