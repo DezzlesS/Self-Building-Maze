@@ -4,6 +4,8 @@ const randIndex = (l) => floor(random() * l);
 
 const wait = (ms) => new Promise(res => setTimeout(res, ms))
 
+const randNum = (min, max) => floor(random() * (max - min + 1) + min)
+
 const opposite = {
     'left': 'right',
     'right': 'left',
@@ -12,18 +14,33 @@ const opposite = {
     undefined: ''
 }
 
+
 class Maze {
     static container = $('.maze-container');
 
-
     static height = 1267; // px
     static width = 2502; // px
-    static dim = 200; // rows
-    static speed = 1 //ms
+    static dimension = 100; // rows
+    static speed = 1; //ms
+
+    static lastSpeed = Maze.speed;
 
     static path = [];
-    
+    static wholePath = [];
 
+
+
+    static set scale(n) {
+        Maze.container.css('transform', `scale(${n})`);
+    }
+    static get scale() {
+        return Maze.scale;
+    }
+    
+    
+    static createInstantly() {
+            
+    }
     
     static create() {
         Maze.createHTML();
@@ -31,15 +48,15 @@ class Maze {
     }
 
     static createHTML({
-        height, dim, width
+        height, dimension, width
     } = Maze) {
         const
-            rowHeight = (height / dim),
+            rowHeight = (height / dimension),
             rowItemsAmount = floor(width / rowHeight),
             insertCells = $('<div class="cell"></div>'.repeat(rowItemsAmount))
         ;
         const
-            rows = $(`<div class=row></div>`.repeat(dim))
+            rows = $(`<div class=row></div>`.repeat(dimension))
                 .css('height', rowHeight)
                 .attr('index', i => i)
                 .append(insertCells)
@@ -50,18 +67,36 @@ class Maze {
                 .appendTo(Maze.container),
             cells = $('.cell')
         ;
+
         Maze.rows = rows;
         Maze.cells = cells;
-        Maze.firstCell = cells.first().addClass('first').css('border-left', 'none');;
-        Maze.lastCell = cells.last().addClass('last').css('border-right', 'none');;
+        Maze.firstCell = cells.first().addClass('first');
+        Maze.lastCell = cells.last().addClass('last');
         Maze.current = Maze.firstCell;
+        
+        $(document).on({
+            'mousedown': () => {
+                Maze.lastSpeed = Maze.speed;
+                Maze.speed = 250
+            },
+            'mouseup': () => {
+                Maze.speed = Maze.lastSpeed;
+            }
+        })
+    }
+
+    static thread() {
+        do {
+            
+        } while (!Maze.current.hasClass('last'));
     }
 
     static async createPath() {
         do {
             await Maze.moveForwards();
-            await Maze.goBackwards();
+            await Maze.moveBackwards();
         } while (!Maze.current.hasClass('first'));
+        Maze.current.removeClass('--head');
     }
 
     static async moveForwards() {
@@ -79,21 +114,24 @@ class Maze {
             Maze.setWalls();
 
             Maze.newCurrent();
-            Maze.path.push(Maze.prev)
+            Maze.path.push(Maze.prev);
+            Maze.wholePath.push(Maze.prev[0]);
 
             await Maze.moveHead();
         }
     }
 
-    static async goBackwards() {
+    static async moveBackwards() {
         do {
             const cell = Maze.path.at(-1);
             Maze.settlePath();
+            Maze.wholePath.push(cell[0]);
             
             Maze.prev = Maze.current;
             Maze.current = cell;
             
             await Maze.moveHead();
+            
 
             Maze.candidates = Maze.findCandidates();
 
@@ -102,11 +140,11 @@ class Maze {
                 Maze.removeWall();
                 Maze.newCurrent();
                 await Maze.moveHead();
-                break;
+                return;
             };
             Maze.path.pop();
-
         } while (Maze.path.length);
+        Maze.settlePath();
     }
     
     static findCandidates(
