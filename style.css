@@ -50,14 +50,18 @@ body {
     border-right-color: transparent !important;
 }
 
+.--visited {
+    background: rgb(94 94 94);
+}
+.--visited-pathfind{
+    background: rgb(54, 54, 54);
+}
 .--path {
     background: rgb(125 197 124);
 }
-
-.--settled {
-    background: rgb(94 94 94);
+.--pathfind {
+    background: rgb(225, 232, 23);
 }
-
 .--head {
     background: white;
     box-shadow: 0 0 12px 2px white;
@@ -66,39 +70,18 @@ body {
 .--bordered {
     border: 1px solid black;
 }
-
-.--thread {
-    position: relative
+[data-side~=left] {
+    border-left-color: transparent;
 }
-
-.--thread::after {
-    position: absolute;
-    width: 100%;
-    height: 1px;
-    background: red;
+[data-side~=right] {
+    border-right-color: transparent;
+}
+[data-side~=top] {
+    border-top-color: transparent;
+}
+[data-side~=bottom] {
+    border-bottom-color: transparent;
 }
 .candidate {
     background: rgb(190, 30, 30);
-}
-.--pathfind {
-    background: rgb(225, 232, 23);
-}
-
-[side~=left] {
-    border-left-color: transparent;
-}
-[side~=right] {
-    border-right-color: transparent;
-}
-[side~=top] {
-    border-top-color: transparent;
-}
-[side~=bottom] {
-    border-bottom-color: transparent;
-}
-
-.thread {
-    width: 100%;
-    height: 2px;
-    background: #cb2d2d;
 }
