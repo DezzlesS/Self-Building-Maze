@@ -111,6 +111,8 @@ export class Maze {
         Maze.firstCell = cells.first().addClass('first');
         Maze.lastCell = cells.last().addClass('last');
         Maze.head = Maze.firstCell;
+        Maze.candidate = [Maze.firstCell]
+
 
         $(document).on({
             'mousedown': Maze.mouseDownHandler,
@@ -131,51 +133,46 @@ export class Maze {
             await Maze.moveForwards();
             await Maze.moveBackwards();
         } while (!Maze.head.hasClass('first'));
+        // Maze.findWayOut();
         Maze.head.removeClass('--head');
     }
+    static async findWayOut() {
+        Maze.head = Maze.firstCell;
+        do {
+            await Maze.moveForwards();
+            await Maze.moveBackwards();
+        } while (!Maze.head.hasClass('last'));
+    }
     static async moveForwards() {
-        while (!Maze.lastCell.prop('head')) {
-
+        do {
+            await Maze.moveHead(
+                Maze.candidate[0]
+            );
             Maze.markNewPath();
             
             Maze.candidates = Maze.findCandidates();
             Maze.candidate = Maze.pickCandidate();
+            // if (Maze.a)
             Maze.setWalls();
-            if (!Maze.candidates.length) return;
             if (Maze.speed > 100) Maze.highlightCandidates();
 
-
-            Maze.newHead();
-            Maze.path.push(Maze.prev);
+            Maze.path.push(Maze.head);
             // Maze.wholePath.push(Maze.prev[0]);
-
-            await Maze.moveHead();
-        }
+        } while (Maze.candidates.length);
     }
     static async moveBackwards() {
-        while (Maze.path.length) {
-            const cell = Maze.path.at(-1);
+        Maze.path.pop()
+        do {
             Maze.settlePath();
-            // Maze.wholePath.push(cell[0]);
-            
-            Maze.prev = Maze.head;
-            Maze.head = cell;
-            
-            await Maze.moveHead();
-            
-
+            const head = Maze.path.pop();
+            if (!head) return;
+            await Maze.moveHead(head);
             Maze.candidates = Maze.findCandidates();
-
-            if (Maze.candidates.length) {
-                Maze.candidate = Maze.pickCandidate();
-                Maze.removeWall();
-                Maze.newHead();
-                await Maze.moveHead();
-                return;
-            };
-            Maze.path.pop();
-        };
-        Maze.settlePath();
+            // Maze.wholePath.push(cell[0]);
+        } while (!Maze.candidates.length);
+        Maze.path.push(Maze.head);
+        Maze.candidate = Maze.pickCandidate();
+        Maze.removeWall();
     }
     static findCandidates(
         item = Maze.head
@@ -191,6 +188,61 @@ export class Maze {
             ].filter(([it]) => it && !it.attributes.path)
         ;
         return candidates;
+    }
+    static pickCandidate() {
+        const rand = randIndex(Maze.candidates.length);
+        return Maze.candidates[rand];
+    }
+    static setWalls() {
+        try {
+            const
+                side = Maze.candidate?.[1] || '',
+                prevSide = Maze.prev.attr('side')?.split(' ')?.[0]
+            ;
+            Maze.head
+                .addClass('--bordered')
+                .attr('side', `${side} ${opposite[prevSide]}`)
+            ;
+        } catch (error) {
+            console.log(error);
+            debugger
+        }
+    }
+    static removeWall() {
+        const [,side] = Maze.candidate;
+        Maze.head.attr('side', (_, attr) => `${side} ${attr}`);
+    }
+    static async moveHead(
+        newHead
+    ) {
+        if (Maze.restart) Maze.create(Maze.input);
+        if (Maze.frozen) {
+            Maze.highlightCandidates(true);
+            await Maze.freezeLoop();
+        };
+        if (Maze.speed > 0) await wait(Maze.speed);
+
+        Maze.prev = Maze.head
+            .removeClass('--head')
+            .removeAttr('head')
+        ;
+        Maze.head = $(newHead)
+            .addClass('--head')
+            .attr('head', '')
+        ;
+    }
+    static settlePath() {
+        Maze.head
+            .removeClass('--path')
+            .addClass('--settled')
+            .attr('settled', '')
+        ;
+    }
+    static markNewPath() {
+        Maze.head
+            .addClass('--path')
+            .attr('path', '',)
+        ;
     }
     static async highlightCandidates(keep) {
         let i = 1;
@@ -212,63 +264,6 @@ export class Maze {
         for (const cell of candidates) {
             $(cell).removeClass('candidate');
         };
-    }
-    static pickCandidate() {
-        const rand = randIndex(Maze.candidates.length);
-        return Maze.candidates[rand];
-    }
-    static newHead() {
-        const [head] = Maze.candidate;
-        Maze.prev = Maze.head;
-        Maze.head = $(head);
-    }
-    static setWalls() {
-        const { candidate } = Maze;
-        try {
-            const
-                side = candidate?.[1] || '',
-                prevSide = Maze.prev?.attr('side').split(' ')[0]
-            ;
-            Maze.head
-                .addClass('--bordered')
-                .attr('side', `${side} ${opposite[prevSide]}`)
-            ;
-        } catch (error) {
-            console.log(error);
-            debugger
-        }
-    }
-    static removeWall() {
-        const [,side] = Maze.candidate;
-        Maze.head.attr('side', (_, attr) => `${side} ${attr}`);
-    }
-    static async moveHead() {
-        if (Maze.restart) Maze.create(Maze.input);
-        if (Maze.frozen) {
-            Maze.highlightCandidates(true);
-            await Maze.freezeLoop();
-        };
-        if (Maze.speed > 0) await wait(Maze.speed);
-
-        Maze.prev
-            .removeClass('--head')
-            .removeAttr('head');
-        Maze.head
-            .addClass('--head')
-            .attr('head', '');
-    }
-    static settlePath() {
-        Maze.head
-            .removeClass('--path')
-            .addClass('--settled')
-            .attr('settled', '')
-        ;
-    }
-    static markNewPath() {
-        Maze.head
-            .addClass('--path')
-            .attr('path', '',)
-        ;
     }
     static async freezeLoop() {
         let time = 0;
@@ -371,7 +366,7 @@ export class Maze {
     }
 }
 
-Maze.create();
+Maze.create({w:60, });
 
 
 

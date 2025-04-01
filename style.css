@@ -80,6 +80,9 @@ body {
 .candidate {
     background: rgb(190, 30, 30);
 }
+.--pathfind {
+    background: rgb(225, 232, 23);
+}
 
 [side~=left] {
     border-left-color: transparent;
