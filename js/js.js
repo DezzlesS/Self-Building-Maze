@@ -7,94 +7,91 @@ import {
     opposite,
     wait,
     defaultWidth,
-    defaultScale
+    defaultScale,
+    defaultLoopSize
 } from "./utils.js";
 
 const { assign } = Object;
-const defaultParameters = {
-    container: $('.maze-container'),
+const defaultParameters = () => ({
+    container: undefined,
+
     w: defaultWidth,
     h: undefined,
     scl: defaultScale,
-
     speed: defaultSpeed,
-    lastSpeed: defaultSpeed,
 
     path: [],
-    wholePath: [], 
+    wholePath: [],
 
     candidate: undefined,
     candidates: undefined,
 
     prev: undefined,
     head: undefined,
+    
+    pathMark: 'path',
+    visitedMark: 'visited',
 
-    frozen: false,
-    speedControl: false,
-
-    mouseDownX: undefined,
-
-    restart: false
-}
+    buildingComplete: false,
+    restart: false,
+    
+    forwardCondition: () => Maze.candidates.length,
+    candidateContition: ({ dataset }) => !(Maze.pathMark in dataset)
+})
 export class Maze {
     static w;
     static h;
+
+    static frozen;
+    static speedControl;
+    static slowedDown;
+    static mouseDownX;
+    static mouseMoveThrottlingTimeout;
+
+    static keyDownHandlers;
+    static keyUpHandlers;
     
-
+    static loopSize = defaultLoopSize;
     
-    static pathMark = 'path';
-    static visitedMark = 'visited';
+    static events = {
+        'mousedown': Maze.mouseDownHandler,
+        'mouseup': Maze.mouseUpHandler,
 
-    static container;
-    static buildingComplete = false;
-    static forwardCondition = () => Maze.candidates.length;
-    static candidateContition = ({ dataset }) => !(Maze.pathMark in dataset);
-    static keyDownHandlers = {
-        'Space'() {
-            $(document).off('keydown');
-            Maze.freeze();
+        'dblclick': Maze.dblclickHandler,
+        
+        'wheel': Maze.mouseWheelHandler,
+        
+        'dragstart'(e) {
+            e.preventDefault();
         },
-    }
-    static keyUpHandlers = {
-        'Space'() {
-            $(document).on('keydown', Maze.keyDownHandler);
-            Maze.cancelFreeze();
-        },
-        'KeyR'() {
-            Maze.input = {
-                w: Maze.w,
-                scl: Maze.scl,
-                speed: Maze.speed
-            }
-            Maze.restart = true;
-        }
-    }
-
-    static get scale() { return Maze.scl }
-    static set scale(scl) {
-        Maze.container.css({
-            width: `${scl}%`,
-            height: `${scl}%`
-        });
-        Maze.scl = scl;
+        
+        'keydown': Maze.keyDownHandler,
+        'keyup': Maze.keyUpHandler,
     }
     
     static async create(input) {
-        Maze.reset(input);
-        Maze.createHTML(input);
-        await Maze.createPath();
-        await Maze.findWayOut();
-    }
-    static reset(input) {
         Maze.input = input;
-        assign(Maze, defaultParameters, input);
+        Maze.loop();
     }
-
-    static createHTML({
-        w, h
-    } = Maze) {
-        [w, h] = evalSideLength(w, h);
+    static async loop() {
+        for (let i = 0; i < Maze.loopSize; i++) {
+            Maze.reset();
+            Maze.createHTML();
+            try {
+                await Maze.createPath();
+                await Maze.findWayOut();
+            } catch (error) { console.log('Maze restarted') }
+        }
+    }
+    static reset(input = Maze.input) {
+        const defaultParams = defaultParameters();
+        for (const prop in defaultParams) {
+            Maze[prop] = input[prop] || defaultParams[prop];
+        }
+    }
+    static createHTML() {
         const
+            [w, h] = evalSideLength(Maze),
             insertCells = $('<div class="cell"></div>'.repeat(w)),
             rows = $(`<div class=row></div>`.repeat(h))
                 // .css('height', rowHeight)
@@ -104,10 +101,10 @@ export class Maze {
                     'data-row': r,
                     'data-col': c => c
                 })),
-            cells = rows.contents()
+            cells = rows.children()
         ;
         Maze.container.html(rows);
-        Maze.fixSize();
+        
 
         Maze.w = w;
         Maze.h = h;
@@ -115,71 +112,61 @@ export class Maze {
         Maze.cells = cells;
         Maze.firstCell = cells.first().addClass('first');
         Maze.lastCell = cells.last().addClass('last');
+        
         Maze.head = Maze.firstCell;
-        Maze.candidate = [Maze.firstCell]
+        Maze.candidate = [Maze.firstCell];
 
-
-
-        $(document).on({
-            'mousedown': Maze.mouseDownHandler,
-            'mouseup': Maze.mouseUpHandler,
-            
-            'wheel': Maze.mouseWheelHandler,
-            
-            'dragstart'(e) {
-                e.preventDefault();
-            },
-            
-            'keydown': Maze.keyDownHandler,
-            'keyup': Maze.keyUpHandler,
-        })
+        Maze.fixSize();
+        Maze.initEvents();
     }
-    static clearPathData() {
-        Maze.cells.removeAttr(`data-${Maze.pathMark}}`);
-    }
+
+
     static async createPath() {
         do {
             await Maze.moveForwards();
             await Maze.moveBackwards();
         } while (!Maze.head.hasClass('first'));
+
         Maze.head.removeClass('--head');
-        Maze.clearPathData();
-        
         Maze.buildingComplete = true;
     }
     static async findWayOut() {
-        Maze.forwardCondition = () => (
-            Maze.candidates.length &&
-            !Maze.head.hasClass('last')
-        )
-        Maze.candidateContition = (
-            { dataset },
-            fromSide,
-        ) => {
-            const toSides = dataset.side;
-            return (
-                !(Maze.pathMark in dataset) &&
-                toSides.includes(opposite[fromSide])
-            )  
-        }
-        Maze.reset({...Maze.input, speed: Maze.speed});
-        Maze.head = Maze.firstCell;
-        Maze.candidate = [Maze.firstCell]
-        Maze.pathMark = 'pathfind';
-        Maze.visitedMark = 'visited';
+        Maze.pathfindReset();
         do {
-            await Maze.moveForwards();
+            await Maze.moveForwards();  
             if (Maze.head.hasClass('last')) break;
             await Maze.moveBackwards();
 
         } while(true);
         Maze.head.removeClass('--head');
     }
+    static pathfindReset() {
+        Maze.cells.removeAttr(`data-${Maze.pathMark}}`);
+        Maze.reset({...Maze.input, ...{
+            pathMark: 'pathfind',
+            visitedMark: 'visited',
+            head: Maze.firstCell,
+            candidate: [Maze.firstCell],
+            buildingComplete: Maze.buildingComplete,
+            forwardCondition: () => (
+                Maze.candidates.length &&
+                !Maze.head.hasClass('last')
+            ),
+            candidateContition: (
+                { dataset },
+                fromSide,
+            ) => {
+                const toSides = dataset.side;
+                return (
+                    !(Maze.pathMark in dataset) &&
+                    toSides.includes(opposite[fromSide])
+                );
+        }}});
+    }
     static async moveForwards() {
         do {
-            await Maze.moveHead(
-                Maze.candidate[0]
-            );
+            const [head] = Maze.candidate
+            await Maze.moveHead(head);
             Maze.markNewPath();
             
             Maze.candidates = Maze.findCandidates();
@@ -193,20 +180,26 @@ export class Maze {
         } while (Maze.forwardCondition());
     }
     static async moveBackwards() {
-        Maze.path.pop()
+        Maze.path.pop();
         do {
             Maze.markVisited();
             const head = Maze.path.pop();
+            if (!Maze.path.length)
             if (!head) return;
+
             await Maze.moveHead(head);
             Maze.candidates = Maze.findCandidates();
+
             // Maze.wholePath.push(cell[0]);
         } while (!Maze.candidates.length);
         Maze.path.push(Maze.head);
         Maze.candidate = Maze.pickCandidate();
+        
         if (Maze.buildingComplete) return;
         Maze.removeWall();
     }
+
+
     static findCandidates(
         item = Maze.head
     ) {
@@ -225,62 +218,6 @@ export class Maze {
     static pickCandidate() {
         const rand = randIndex(Maze.candidates.length);
         return Maze.candidates[rand];
-    }
-    static setWalls() {
-        try {
-            const
-                side = Maze.candidate?.[1] || '',
-                prevSide = Maze.prev.attr('data-side')?.split(' ')?.[0]
-            ;
-            Maze.head
-                .addClass('--bordered')
-                .attr('data-side', `${side} ${opposite[prevSide]}`)
-            ;
-        } catch (error) {
-            console.log(error);
-            debugger
-        }
-    }
-    static removeWall() {
-        const [,side] = Maze.candidate;
-        Maze.head.attr('data-side', (_, attr) => `${side} ${attr}`);
-    }
-    static async moveHead(
-        newHead
-    ) {
-        if (Maze.restart) Maze.create(Maze.input);
-        if (Maze.frozen) {
-            Maze.highlightCandidates(true);
-            await Maze.freezeLoop();
-        };
-        if (Maze.speed > 0) await wait(Maze.speed);
-
-        Maze.prev = Maze.head
-            .removeClass('--head')
-            .removeAttr('data-head')
-        ;
-        Maze.head = $(newHead)
-            .addClass('--head')
-            .attr('data-head', '')
-        ;
-    }
-    static markVisited() {
-        if (Maze.buildingComplete) {
-            Maze.head
-            .removeClass(`--${Maze.visitedMark} --${Maze.pathMark}`)
-            .addClass(`--${Maze.visitedMark}-pathfind`)
-        } else {
-            Maze.head
-            .removeClass(`--${Maze.pathMark}`)
-            .addClass(`--${Maze.visitedMark}`)
-            .attr(`data-${Maze.visitedMark}`, '')
-        }
-    }
-    static markNewPath() {
-        Maze.head
-            .addClass(`--${Maze.pathMark}`)
-            .attr(`data-${Maze.pathMark}`, '',)
-        ;
     }
     static async highlightCandidates(keep) {
         let i = 1;
@@ -303,37 +240,110 @@ export class Maze {
             $(cell).removeClass('candidate');
         };
     }
-    static async freezeLoop() {
-        let time = 0;
-        
-        console.log("Generation freezed.");    
-        const interval = setInterval(() => {
-            console.log(`freezing... ${time++} seconds`);
-        }, 1000, time);
-        
-        while (Maze.frozen) await wait(100);
-        clearInterval(interval);
 
-        console.log("Generation resumed.");
+
+    static async moveHead(
+        newHead
+    ) {
+        if (Maze.restart) throw new Error();
+        if (Maze.frozen) {
+            Maze.highlightCandidates(true);
+            await Maze.freezeLoop();
+        };
+        if (Maze.speed > 0) await wait(Maze.speed);
+
+        Maze.prev = Maze.head
+            .removeClass('--head')
+            .removeAttr('data-head')
+        ;
+        Maze.head = $(newHead)
+            .addClass('--head')
+            .attr('data-head', '')
+        ;
+    }
+
+
+    static setWalls() {
+        const
+            side = Maze.candidate?.[1] || '',
+            prevSide = Maze.prev.attr('data-side')?.split(' ')?.[0]
+        ;
+        Maze.head
+            .addClass('--bordered')
+            .attr('data-side', `${side} ${opposite[prevSide]}`)
+        ;
+    }
+    static removeWall() {
+        const [,side] = Maze.candidate;
+        Maze.head.attr('data-side', (_, attr) => `${side} ${attr}`);
     }
 
     
+    static markVisited() {
+        if (Maze.buildingComplete) {
+            Maze.head
+                .removeClass(`--${Maze.visitedMark} --${Maze.pathMark}`)
+                .addClass(`--${Maze.visitedMark}-pathfind`)
+        } else {
+            Maze.head
+                .removeClass(`--${Maze.pathMark}`)
+                .addClass(`--${Maze.visitedMark}`)
+                .attr(`data-${Maze.visitedMark}`, '')
+        }
+    }
+    static markNewPath() {
+        Maze.head
+            .addClass(`--${Maze.pathMark}`)
+            .attr(`data-${Maze.pathMark}`, '',)
+        ;
+    }
 
-
+    
+    static initEvents() {
+        $(document)
+            .off(Maze.events)
+            .on(Maze.events)
+        Maze.keyDownHandlers = {
+            'Space'() {
+                $(document).off('keydown');
+                Maze.freeze();
+            },
+        }
+        Maze.keyUpHandlers = {
+            'Space'() {
+                $(document).on('keydown', Maze.keyDownHandler);
+                Maze.cancelFreeze();
+            },
+            'KeyR'() {
+                Maze.restart = true;
+            }
+        }
+    }
     static mouseDownHandler({ clientX }) {
         Maze.mouseDownX = clientX;
-        Maze.slowDown();
+        if (!Maze.speedChanged) Maze.slowDown();
 
         Maze.mouseMoveThrottling(100);
     }
     static mouseUpHandler()  {
-        if (Maze.frozen) return;
+        clearTimeout(Maze.mouseMoveThrottlingTimeout);
         $(document).off('mousemove', Maze.mouseMoveHandler);
-        Maze.cancelSlowDown(); 
+
+        if (Maze.frozen) return;
+        if (Maze.slowedDown) Maze.cancelSlowDown(); 
+
+        Maze.speedControl = false;        
     }
     static mouseMoveHandler(e)  {
-        if (Maze.speedControl) Maze.accelerate(e);
+        Maze.setSpeed(e);
+        Maze.slowedDown = false;
+        Maze.speedControl = true;
+        
         Maze.mouseMoveThrottling(50);
+    }
+    static dblclickHandler() {
+        Maze.speed = defaultSpeed;
+        Maze.speedChanged = false;
     }
         
     static mouseWheelHandler({
@@ -353,37 +363,39 @@ export class Maze {
             Maze.keyUpHandlers[code]();
         }
     }
-    static mouseMoveThrottling(delay)  {
-        $(document).off('mousemove');
-        setTimeout(() => {
+    static mouseMoveThrottling(delay) {
+        $(document).off('mousemove', Maze.mouseMoveHandler);
+        Maze.mouseMoveThrottlingTimeout = setTimeout(() => {
             $(document).on('mousemove', Maze.mouseMoveHandler);
         }, delay);
     }
 
 
 
-    static accelerate({ pageX }) {
-        Maze.speedControl = true;
-        
+    static setSpeed({ pageX }) {
         if (pageX === Maze.mouseDownX) return;
-        Maze.speed = evalSpeed(pageX);
+        Maze.speed = evalSpeed(
+            pageX,
+            Maze.mouseDownX,
+            Maze.speed
+        );
+        Maze.speedChanged = true;
         Maze.mouseDownX = pageX;
-        console.log(`Speed: ${Maze.speed}`);
     }
     static slowDown() {
-        Maze.speedControl = true;
         Maze.speed = defaultSlowDown;
+        Maze.slowedDown = true;
     }
     static cancelSlowDown() {
-        Maze.speedControl = false;
         Maze.speed = defaultSpeed;
+        Maze.slowedDown = false;
     }
     static freeze() {
         Maze.frozen = true;
     }
-    static cancelFreeze() {
+    static async cancelFreeze() {
         Maze.frozen = false;
-        setTimeout(Maze.removeCandidatesHighlight, 0, Maze.candidates)
+        Maze.removeCandidatesHighlight(Maze.candidates);
     }
     static changeScale(deltaY) {
         if (deltaY < 0) {
@@ -397,20 +409,56 @@ export class Maze {
         console.log(`Scale: ${Maze.scale}`);
         
     }
+    static async freezeLoop() {
+        let time = 0;
+        
+        console.log("Generation freezed.");    
+        const interval = setInterval(() => {
+            console.log(`freezing... ${time++} seconds`);
+        }, 1000, time);
+        
+        while (Maze.frozen) await wait(100);
+        clearInterval(interval);
+
+        console.log("Generation resumed.");
+    }
     static fixSize() {
         Maze.container.css(
             Maze.container.css(['width', 'height'])
         )
     }
+
+
+    static get speed() { return Maze.input.speed }
+    static set speed(speed) {
+        Maze.input.speed = speed;
+        console.log(`Speed: ${speed}`);
+    }
+    static get scale() { return Maze.scl }
+    static set scale(scl) {
+        Maze.container.css({
+            width: `${scl}%`,
+            height: `${scl}%`
+        });
+        Maze.scl = scl;
+        Maze.input.scl = scl;
+    }
+    static get width () { return Maze.w }
+    static set width(w) {
+        Maze.input.w = w;
+        delete Maze.input.h;
+        Maze.restart = true;
+    }
+    static get height () { return Maze.h }
+    static set height(h) {
+        Maze.input.h = h;
+        delete Maze.input.w;
+        Maze.restart = true;
+    }
 }
 
-Maze.create({w:30,  });
-
-
-
-
-// while (Maze.frozen) { // Check if the maze is frozen
-//     console.log("Maze generation is frozen...");
-//     await wait(100); // Pause for 100ms before checking again
-// }
-// console.log("Maze generation resumed.");
+Maze.create({
+    container: $('.maze-container'),
+    w: 30,
+    speed: 100
+});

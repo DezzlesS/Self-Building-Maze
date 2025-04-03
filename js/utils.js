@@ -19,11 +19,15 @@ export const
     defaultSlowDown = 105, //ms
     defaultScale = 100,
     maxSpeed = 1, //ms
-    minSpeed = 1750 //ms
+    minSpeed = 1750, //ms
+    defaultLoopSize = Infinity
 ;
 
 
-export function evalSideLength(width, height) {
+export function evalSideLength({
+    w: width,
+    h: height
+}) {
     if (!width && !height) width = defaultWidth;
     if (!width) {
         const cellSize = floor($('body').height() / height);
@@ -35,14 +39,18 @@ export function evalSideLength(width, height) {
     }
     return [width, height];
 }
-export function evalSpeed(pageX) {
+export function evalSpeed(
+    pageX,
+    mouseDownX,
+    mazeSpeed
+) {
     let speed;
-    if (pageX > Maze.mouseDownX) {
-        speed = Maze.speed / 1.3;
+    if (pageX > mouseDownX) {
+        speed = mazeSpeed / 1.3;
         if (speed < maxSpeed) speed = maxSpeed;
     };
-    if (pageX < Maze.mouseDownX) {
-        speed = Maze.speed * 1.3;
+    if (pageX < mouseDownX) {
+        speed = mazeSpeed * 1.3;
         if (speed > minSpeed) speed = minSpeed;
     }
     return speed;
