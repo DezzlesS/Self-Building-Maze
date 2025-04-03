@@ -23,6 +23,7 @@ export const
     defaultLoopSize = Infinity
 ;
 
+export const getCols = rows => [...rows[0].children].map((_,i) => rows.map((_,{ children }) => children[i]));
 
 export function evalSideLength({
     w: width,

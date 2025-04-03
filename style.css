@@ -57,10 +57,10 @@ body {
     background: rgb(54, 54, 54);
 }
 .--path {
-    background: rgb(125 197 124);
+    background: hsl(120, 40%, 65%);
 }
 .--pathfind {
-    background: rgb(22, 190, 228);
+    background: hsl(190, 85%, 50%);
 }
 .--head {
     background: white;

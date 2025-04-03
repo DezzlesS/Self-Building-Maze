@@ -8,10 +8,10 @@ import {
     wait,
     defaultWidth,
     defaultScale,
-    defaultLoopSize
+    defaultLoopSize,
+    getCols
 } from "./utils.js";
 
-const { assign } = Object;
 const defaultParameters = () => ({
     container: undefined,
 
@@ -21,7 +21,6 @@ const defaultParameters = () => ({
     speed: defaultSpeed,
 
     path: [],
-    wholePath: [],
 
     candidate: undefined,
     candidates: undefined,
@@ -83,10 +82,13 @@ export class Maze {
             } catch (error) { console.log('Maze restarted') }
         }
     }
-    static reset(input = Maze.input) {
-        const defaultParams = defaultParameters();
+    static reset(input = {}) {
+        const
+            resetData = {...input, ...Maze.input },
+            defaultParams = defaultParameters()
+        ;
         for (const prop in defaultParams) {
-            Maze[prop] = input[prop] || defaultParams[prop];
+            Maze[prop] = resetData[prop] || defaultParams[prop];
         }
     }
     static createHTML() {
@@ -100,18 +102,16 @@ export class Maze {
                 .each((r, row) => $(row).children().attr({
                     'data-row': r,
                     'data-col': c => c
-                })),
-            cells = rows.children()
+                }))
         ;
         Maze.container.html(rows);
-        
 
         Maze.w = w;
         Maze.h = h;
         Maze.rows = rows;
-        Maze.cells = cells;
-        Maze.firstCell = cells.first().addClass('first');
-        Maze.lastCell = cells.last().addClass('last');
+        Maze.cells = rows.children();
+        Maze.firstCell = Maze.cells.first().addClass('first');
+        Maze.lastCell = Maze.cells.last().addClass('last');
         
         Maze.head = Maze.firstCell;
         Maze.candidate = [Maze.firstCell];
@@ -136,13 +136,20 @@ export class Maze {
             await Maze.moveForwards();  
             if (Maze.head.hasClass('last')) break;
             await Maze.moveBackwards();
-
         } while(true);
         Maze.head.removeClass('--head');
+        await Maze.pathDissappear();
+    }
+    static async pathDissappear() {
+        for (const cell of Maze.path) {
+            cell.removeClass(`--${Maze.pathMark}`);
+            await wait(Maze.speed);
+        }
     }
     static pathfindReset() {
         Maze.cells.removeAttr(`data-${Maze.pathMark}}`);
-        Maze.reset({...Maze.input, ...{
+        
+        Maze.reset({
             pathMark: 'pathfind',
             visitedMark: 'visited',
             head: Maze.firstCell,
@@ -161,7 +168,8 @@ export class Maze {
                     !(Maze.pathMark in dataset) &&
                     toSides.includes(opposite[fromSide])
                 );
-        }}});
+            }
+        });
     }
     static async moveForwards() {
         do {
@@ -171,12 +179,11 @@ export class Maze {
             
             Maze.candidates = Maze.findCandidates();
             Maze.candidate = Maze.pickCandidate();
-            // if (Maze.a)
+
             if (!Maze.buildingComplete) Maze.setWalls();
             if (Maze.speed > 100) Maze.highlightCandidates();
 
             Maze.path.push(Maze.head);
-            // Maze.wholePath.push(Maze.prev[0]);
         } while (Maze.forwardCondition());
     }
     static async moveBackwards() {
@@ -184,13 +191,11 @@ export class Maze {
         do {
             Maze.markVisited();
             const head = Maze.path.pop();
-            if (!Maze.path.length)
             if (!head) return;
 
             await Maze.moveHead(head);
             Maze.candidates = Maze.findCandidates();
 
-            // Maze.wholePath.push(cell[0]);
         } while (!Maze.candidates.length);
         Maze.path.push(Maze.head);
         Maze.candidate = Maze.pickCandidate();
@@ -220,20 +225,18 @@ export class Maze {
         return Maze.candidates[rand];
     }
     static async highlightCandidates(keep) {
-        let i = 1;
         const 
             candidates = Maze.candidates,
-            { length } = candidates,
-            delay = Maze.speed / (length + 1) 
+            delay = Maze.speed / (candidates.length + 1)
         ;
         for (const [cell] of candidates) {
-            setTimeout(() => {
-                cell.classList.add('candidate');
-            }, delay * i++)
+            await wait(delay);
+            cell.classList.add('candidate');
         };
         if (keep) return;
         
-        setTimeout(Maze.removeCandidatesHighlight, delay*i, candidates);
+        await wait(delay)
+        Maze.removeCandidatesHighlight(candidates);
     }
     static removeCandidatesHighlight(candidates) {
         for (const cell of candidates) {
@@ -282,7 +285,7 @@ export class Maze {
     static markVisited() {
         if (Maze.buildingComplete) {
             Maze.head
-                .removeClass(`--${Maze.visitedMark} --${Maze.pathMark}`)
+                .removeClass(`--${Maze.pathMark}`)
                 .addClass(`--${Maze.visitedMark}-pathfind`)
         } else {
             Maze.head
@@ -460,5 +463,4 @@ export class Maze {
 Maze.create({
     container: $('.maze-container'),
     w: 30,
-    speed: 100
 });
