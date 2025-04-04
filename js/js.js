@@ -505,3 +505,5 @@ await Maze.create({
     w: 50,
     speed: 1,
 });
+
+'bababa'
