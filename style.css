@@ -63,7 +63,7 @@ body {
     background: hsl(190, 85%, 50%);
 }
 .--head {
-    background: white;
+    background: white !important;
     box-shadow: 0 0 12px 2px white;
 }
 

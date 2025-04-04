@@ -1,9 +1,6 @@
-import { Maze } from "./js.js";
-
-
 export const
     { floor, random, ceil } = Math,
-    randIndex = (l) => floor(random() * l),
+    randNum = (l) => floor(random() * l),
 
     wait = (ms) => new Promise(res => setTimeout(res, ms)),
 
@@ -20,10 +17,22 @@ export const
     defaultScale = 100,
     maxSpeed = 1, //ms
     minSpeed = 1750, //ms
-    defaultLoopSize = Infinity
+    defaultLoopSize = 100
 ;
 
-export const getCols = rows => [...rows[0].children].map((_,i) => rows.map((_,{ children }) => children[i]));
+export const
+    getCols = rows => [...rows[0].children].map((_,i) => rows.map((_,{ children }) => children[i])),
+    createColorStyle = ({
+        pathMark, pathfindMark,
+        pathColor, pathfindColor
+    }) => $('<style>')
+            .html(`
+                .--${pathMark} { background-color: ${pathColor} }
+                .--${pathfindMark} { background-color: ${pathfindColor} }`
+            )
+            .appendTo('body')
+            
+;
 
 export function evalSideLength({
     w: width,
@@ -56,20 +65,3 @@ export function evalSpeed(
     }
     return speed;
 };
-
-
-
-// static evalSpeed(clientX) { 
-//     const
-//         docWidth = $(document).width(),
-//         mouseX = clientX / docWidth; //proportion
-//     ;
-//     return maxSpeed - maxSpeed * mouseX;
-// }
-
-
-// static get dimension() { return Maze.dim }
-// static set dimension(dim) {
-//     const [width, height] = [dim, dim];
-//     Maze.create({...Maze, width, height })
-// }
